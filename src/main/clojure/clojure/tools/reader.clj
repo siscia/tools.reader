@@ -27,6 +27,23 @@
     (\" \; \@ \^ \` \~ \( \) \[ \] \{ \} \\) true
     false))
 
+
+(defn ^String read-immutable-token
+  [rdr]
+  (if (nil? (read-char rdr))
+    nil
+    (loop [sb []
+           rdr rdr]
+      (let [ch (read-char rdr)]
+        (if (or (whitespace? ch)
+                (macro-terminating? ch)
+                (nil? ch))
+          ;(clojure.string/join sb)
+          [(clojure.string/join sb) (slide rdr)]
+          (recur (conj sb ch) (slide rdr)))))))
+
+;;(take-while #(not (nil? %)) (map first (iterate (fn [[_ x]] (read-immutable-token x)) (read-immutable-token t))))
+
 (defn- ^String read-token
   [rdr initch]
   (if-not initch
@@ -147,9 +164,13 @@
           (persistent! a)
           (if-let [macrofn (macros ch)]
             (let [mret (macrofn rdr ch)]
-              (recur (if-not (identical? mret rdr) (conj! a mret) a)))
+              (recur (if-not (identical? mret rdr)
+                       (conj! a mret)
+                       a)))
             (let [o (read (doto rdr (unread ch)) true nil recursive?)]
-              (recur (if-not (identical? o rdr) (conj! a o) a)))))
+              (recur (if-not (identical? o rdr)
+                       (conj! a o)
+                       a)))))
         (reader-error rdr "EOF while reading"
                       (when first-line
                         (str ", starting at line" first-line)))))))
