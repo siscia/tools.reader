@@ -29,6 +29,14 @@
   (get-column-number [reader]
     "Returns the line number of the next character to be read from the stream"))
 
+(defprotocol Slider
+  (read-value [_]
+    "Return the next element in the slider")
+  (slide [_]
+    "Slide ahead of one position")
+  (back [_]
+    "Slide back of one position"))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reader deftypes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -84,6 +92,26 @@
       (if (zero? buf-pos) (throw (RuntimeException. "Pushback buffer is full")))
       (update! buf-pos dec)
       (aset buf buf-pos ch))))
+
+
+(deftype PushBackReaderImmutable
+    [readed to-read]
+  Slider
+  (read-value [reader]
+    (first to-read))
+  (slide [reader]
+    (PushBackReaderImmutable. (conj readed (read-char reader)) (next to-read)))
+  (back [reader]
+    (PushBackReaderImmutable. (drop-last readed) (cons (last readed) to-read)))
+  Reader
+  (read-char [reader]
+    (char (read-value reader)))
+  (peek-char [reader]
+    (first to-read))
+  IPushbackReader
+  (unread [reader ch]
+    (PushBackReaderImmutable. (drop-last readed)
+                              (cons ch to-read))))
 
 (defn- normalize-newline [rdr ch]
   (if (identical? \return ch)
@@ -173,6 +201,11 @@
      (string-push-back-reader s 1))
   ([^String s buf-len]
      (PushbackReader. (string-reader s) (object-array buf-len) buf-len buf-len)))
+
+(defn string-push-back-reader-immutable
+  "Create a PushBackReaderImmutable from a string"
+  [s]
+  (PushBackReaderImmutable. nil s))
 
 (defn input-stream-reader
   "Creates an InputStreamReader from an InputStream"
